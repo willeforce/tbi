@@ -1,0 +1,1592 @@
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 1   
+
+
+DOS C51 COMPILER V5.20, COMPILATION OF MODULE TBI
+OBJECT MODULE PLACED IN TBI.OBJ
+COMPILER INVOKED BY: E:\C51EVAL\BIN\C51.EXE TBI.C SB DB OE LARGE WL(0) MODP2
+
+stmt level    source
+
+   1          /*==================================*/
+   2          /*  Ì«ÑôÄÜÍ¬²½Äæ±äÆ÷ÏµÍ³¿ØÖÆ³ÌÐò    */
+   3          /*  TBI.C                           */
+   4          /*  1997.12.1                       */
+   5          /*==================================*/
+   6          
+   7          /*==============*/
+   8          /*  °üº¬Í·ÎÄ¼þ  */
+   9          /*==============*/
+  10          #include <mice.h>
+  11          #include <stdarg.h>
+  12          #include <string.h>
+  13          
+  14          /*==============*/
+  15          /*  ÉèÖÃ½á¹¹    */
+  16          /*==============*/
+  17          typedef struct{
+  18              char type;              /*  ÐÍÊ½±êÖ¾                */
+  19                                      /*  0=ÊýÖµ                  */
+  20                                      /*  1=×Ö·û´®Ñ¡Ïî            */
+  21                                      /*  2=Ê±ÖÓ                  */
+  22                                      /*  3=ÈÕÆÚ                  */
+  23              char title[32];         /*  ÌáÊ¾ÐÅÏ¢×Ö·û´®        */
+  24              int max,min;            /*  ×î´ó×îÐ¡Öµ                  */
+  25              char **option;          /*  ×Ö·û´®Ñ¡ÏîµÄÏÔÊ¾Ö¸Õë        */
+  26              unsigned int *value;
+  27              unsigned int *value1;
+  28              unsigned int *value2;
+  29          }setup_index;               /*  ÉèÖÃËùÐèÒªµÄÐÅÏ¢½á¹¹        */
+  30          #define CLOCK 2
+  31          #define DATE    3
+  32          
+  33          /*==============*/
+  34          /*  ÏµÍ³ºê¶¨Òå  */
+  35          /*==============*/
+  36          #define MODEL 10            /*»úÆ÷´úÂë  */
+  37          #define DELAY_SCALE 115     /*  ÑÓÊ±×Ó³ÌÐòÏµÊý  */
+  38          #define WAITTIME 10*60       /*  ²»°´¼üµÈ´ýÊ±¼ä  */
+  39          #define COMP_ZERO   200
+  40          #define FLASH_TIME  50     /*  ÉÁË¸Ê±¼ä    */
+  41          #define INPUT_DELAY 10      /*  ÉèÖÃÁ¬¼ÓµÈ´ýÊ±¼ä    */
+  42          #define TIMEBASE    50     /*  ¶¨Ê±ÖÐ¶ÏÊ±¼ä,µ¥Î»ms */
+  43          #define T0_INIT     19457   /*0xffff-(TIMEBASE*1000)/(12/FREQ)  */
+  44          
+  45          /*------------------------------*/
+  46          /*  keyboard value table        */
+  47          /*------------------------------*/
+  48          #define NO  0
+  49          #define OK  0xe
+  50          #define ESC 0xd
+  51          #define INC 0xb
+  52          #define DEC 7
+  53          
+  54          /*------------------------------*/
+  55          /*      ÉèÖÃ±äÁ¿·¶Î§¶¨Òå        */
+  56          /*------------------------------*/
+  57          #define BT_MIN_MAX      720
+  58          #define BT_MIN_MIN      630
+  59          #define BT_MAX_MIN      820
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 2   
+
+  60          #define BT_MAX_MAX      1080
+  61          
+  62          /*----------------------*/
+  63          /*      ±äÁ¿È±Ê¡Öµ¶¨Òå  */
+  64          /*----------------------*/
+  65          #define DELAY_CHANGE_VALUE      5
+  66          #define BT_MIN_DEFAULT_VALUE    672
+  67          #define BT_MAX_DEFAULT_VALUE    960
+  68          #define BT_RELOAD_VALUE         768
+  69          #define DELAY_DISCONNECT_VALUE  5
+  70          #define FLOAT_MAX_VALUE         828
+  71          #define FLOAT_MIN_VALUE         810
+  72          #define comp_temp               0
+  73          
+  74          /*------------------------------*/
+  75          /*      EPROM´æ´¢ÐòÁÐ¶¨Òå       */
+  76          /*------------------------------*/
+  77          #define EHOUR           0
+  78          #define EMIN            1
+  79          #define SHOUR           2
+  80          #define SMIN            3
+  81          #define MODE            4
+  82          #define GRID_MAX        5
+  83          #define GRID_MIN        6
+  84          #define BT_MIN          7
+  85          #define BT_MAX          8
+  86          #define LOCAL           9
+  87          #define AUTO_UPLOAD     10
+  88          #define UP_HOUR         11
+  89          #define UP_MIN          12
+  90          #define PHONE           13
+  91          #define SYSTEM_FLAG     40
+  92          #define CLIP            41
+  93          #define DATA_INDEX      57
+  94          #define DATA            58
+  95          
+  96          /*----------------------*/
+  97          /*      EPROM²Ù×÷´úÂë   */
+  98          /*----------------------*/
+  99          #define EWEN    0x01
+ 100          #define EWDS    0
+ 101          #define ERAL    0x0300
+ 102          #define ERASE   0x0200
+ 103          
+ 104          #define CONNECT 1
+ 105          #define NO_CARRIER  3
+ 106          #define NowData 51
+ 107          #define SendSetData 54
+ 108          #define sendsys	    55
+ 109          
+ 110          /*==================*/
+ 111          /*  A/DÊäÈëÍ¨µÀºÅ   */
+ 112          /*==================*/
+ 113          #define BT_V            0
+ 114          #define SOLAR_V         1
+ 115          #define SR_V0           1
+ 116          #define SR_V1           2
+ 117          #define SR_V2           3
+ 118          #define SR_V3           4
+ 119          #define SR_V4           5
+ 120          #define SR_V5           6
+ 121          #define GRID_V          7
+ 122          #define TEMP_BT         8
+ 123          #define HOT             8
+ 124          #define INV_V           9
+ 125          #define INV_C           10
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 3   
+
+ 126          #define LOAD_I          14
+ 127          #define BT_C            15
+ 128          #define SR_I0           0x10
+ 129          #define SR_I1           0x11
+ 130          #define SR_I2           0x12
+ 131          #define SR_I3           0x13
+ 132          #define SR_I4           0x14
+ 133          #define SR_I5           0x15
+ 134          
+ 135          #define SOLAR   1
+ 136          /*==============*/
+ 137          /*  Êä³ö¿Ú¶¨Òå  */
+ 138          /*==============*/
+ 139          idata union{
+ 140          struct{
+ 141              unsigned char adport:4;
+ 142              unsigned char led:1;
+ 143          }pa;
+ 144          char pao;
+ 145          }paa;
+ 146          
+ 147          idata union{
+ 148          struct{
+ 149              char solorsw:6;
+ 150          }pb;
+ 151          char pbo;
+ 152          }pbb;
+ 153          
+ 154          idata union{
+ 155          struct{
+ 156              char loadsw:1;
+ 157              char high:1;
+ 158              char low:1;
+ 159              char work:1;
+ 160          }pc;
+ 161          char pco;
+ 162          }pcc;
+ 163          
+ 164          /*==================*/
+ 165          /*  ÏµÍ³±äÁ¿¶¨Òå    */
+ 166          /*==================*/
+ 167          idata struct{
+ 168              unsigned int bt_v_max;  /*  Ðîµç³Ø×î¸ßµçÑ¹  */
+ 169              unsigned int bt_v_min;  /*  Ðîµç³Ø×îµÍµçÑ¹  */
+ 170              unsigned long charge_ah;    /*  ³äµç°²Ê±    */
+ 171              unsigned long discharge_ah; /*  ·Åµç°²Ê±    */
+ 172              unsigned char solar_state;   /*  ³äµçµ±Ç°¼°ÏÂÒ»×´Ì¬  */
+ 173              unsigned char load;                  /*  Êä³ö×´Ì¬    */
+ 174          }now;
+ 175              bit up_load;
+ 176          /*    code unsigned int v[7]={0,taper,(taper*4+bm)/5,(taper*3+bm*2)/5,(taper*2+bm*3)/5,
+ 177                                 (taper+bm*4)/5,bm};*/  /*  ³äµç²ÎÊýÖµ  */
+ 178          
+ 179              idata unsigned int  bt_min;   /*  µÍÑ¹¸æ¾¯Öµ  */
+ 180              idata unsigned int  bt_max;   /*  ¸ßÑ¹¸æ¾¯Öµ  */
+ 181              idata unsigned int  grid_max; /*  µçÍø¸ßÑ¹¸æ¾¯Öµ  */
+ 182              idata unsigned int  grid_min; /*  µçÍøµÍÑ¹¸æ¾¯Öµ  */
+ 183          
+ 184              idata unsigned char char_point=10; /*  ÉèÖÃ±äÁ¿Ö¸Õë    */
+ 185              idata unsigned int time;     /*  ÏµÍ³¼ÆÊ±    */
+ 186          
+ 187              idata unsigned int ad_result; /*  A/D½á¹û */
+ 188              idata unsigned char please;   /*  ADÇëÇó  */
+ 189          
+ 190              code unsigned char clip[16]={128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128}; /*  ADÐ
+             -£ÕýÏµÊý  */
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 4   
+
+ 191          
+ 192          
+ 193              bit intflag,mflag,mdisplay;    /*  ÖÐ¶Ï±êÖ¾    */
+ 194          
+ 195          
+ 196              bit mode;
+ 197              idata unsigned int v1,v2,v3;
+ 198              code char *pmode[]={"OFF","ON"};
+ 199              code setup_index prompt[10]={
+ 200                  {0,"\aBATTERY HIGH AL-\nARM IN %oV",BT_MAX_MAX,BT_MAX_MIN,NULL,&bt_max,NULL,NULL},
+ 201                  {0,"\aBATTERY LOW  AL-\nARM IN %oV",BT_MIN_MAX,BT_MIN_MIN,NULL,&bt_min,NULL,NULL},
+ 202                  {0,"\aGRID HIGH ALARM\n IN %oV",2600,2300,NULL,&grid_max,NULL,NULL},
+ 203                  {0,"\aGRID LOW  ALARM\n IN %oV",1900,1600,NULL,&grid_min,NULL,NULL},
+ 204                  {3,"\aCURRENT DATE:\n %d-%d-%d",0,0,NULL,&v1,&v2,&v3},
+ 205                  {2,"\aCURRENT TIME:\n %d:%d:%d",0,0,NULL,&v1,&v2,&v3},
+ 206                  {1,"\aAUTO WORK BY\nTIME:%s",1,0,pmode,&v1,NULL,NULL},
+ 207                  {2,"\aSTART TIME:\n %d:%d",0,0,NULL,&v1,&v2,NULL},
+ 208                  {2,"\aEND TIME:\n %d:%d",0,0,NULL,&v1,&v2,NULL},
+ 209                  {0,"\aVIEW HISTORY",0,0,NULL,NULL,NULL,NULL}
+ 210              };
+ 211          
+ 212              idata char bufin,bufout,buf[5];
+ 213          /*==================*/
+ 214          /*  ÊäÈëÊä³ö¿Ú¶¨Òå  */
+ 215          /*==================*/
+ 216          
+ 217          /*  DS12887 BIT     */
+ 218          #ifdef POD8751
+                  sbit dcs=0Xdc;
+                  sbit das=0xdb;
+                  sbit drw=0xd9;
+                  sbit dds=0xd8;
+              
+                  sbit wdg=0xcc;
+                  sbit paen=0xdd;
+                  sbit pben=0xde;
+                  sbit pcen=0xdf;
+                  sbit outen=0XCE;
+              
+                  sbit RS=0xd8;
+                  sbit rw=0xd9;
+                  sbit e=0xda;
+              
+                  sbit Do=P1^4;
+                  sbit di=P1^5;
+                  sbit clk=P1^6;
+                  sbit cs=P1^7;
+              
+                  sbit sk=0xcf;
+                  sbit dout=0xcd;
+                  sbit cs0=0xca;
+              #endif
+ 243          #ifndef POD8751
+ 244              sbit dcs=0Xa4;
+ 245              sbit das=0xa3;
+ 246              sbit drw=0xa1;
+ 247              sbit dds=0xa0;
+ 248          
+ 249              sbit wdg=0xb4;
+ 250              sbit paen=0xa5;
+ 251              sbit pben=0xa6;
+ 252              sbit pcen=0xa7;
+ 253              sbit outen=0Xb6;
+ 254          
+ 255              sbit RS=0xa0;
+ 256              sbit rw=0xa1;
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 5   
+
+ 257              sbit e=0xa2;
+ 258          
+ 259              sbit Do=P1^4;
+ 260              sbit di=P1^5;
+ 261              sbit clk=P1^6;
+ 262              sbit cs=P1^7;
+ 263          
+ 264              sbit sk=0xb7;
+ 265              sbit dout=0xb5;
+ 266              sbit cs0=0xb2;
+ 267          #endif
+ 268          /*======================*/
+ 269          /*      º¯ÊýÔ¤ËµÃ÷      */
+ 270          /*======================*/
+ 271          lcd_init(void);
+ 272          printf(char *format,...);
+ 273          delay(unsigned int times);
+ 274          set_eprom(unsigned char command);
+ 275          unsigned int eprom(unsigned char address);
+ 276          unsigned char wait_key();
+ 277          write_eprom(unsigned char address,unsigned int Data);
+ 278          setuploop();
+ 279          char dsr(char ads);
+ 280          dsw(char ads,char db);
+ 281          
+ 282          /*==============*/
+ 283          /*  ÏµÍ³³õÊ¼»¯  */
+ 284          /*==============*/
+ 285          init()
+ 286          {
+ 287   1      /*    unsigned char i;*/
+ 288   1          P0=paa.pao=pbb.pbo=pcc.pco=paen=pben=pcen=e=outen=0;
+ 289   1          paa.pa.led=1;
+ 290   1          P0=paa.pao;
+ 291   1          paen=1;
+ 292   1          paen=0;
+ 293   1          now.bt_v_min=1024;
+ 294   1          now.load=now.solar_state=0;
+ 295   1          /*  LCDÏÔÊ¾Æ÷³õÊ¼»¯ */
+ 296   1          lcd_init();
+ 297   1          /*  ÏµÍ³×´Ì¬ÅÐ±ð    */
+ 298   1          printf("\a Solar Inverter\nVer:1.00 98-1");
+ 299   1          delay(1000);
+ 300   1          IE=0x86;
+ 301   1          SCON=0x70;
+ 302   1          TMOD=0x21;
+ 303   1          TH1=0xfd;
+ 304   1          PCON=0;
+ 305   1          IT1=1;
+ 306   1          TR0=ES=TR1=EA=1;
+ 307   1      /*
+ 308   1          if(eprom(SYSTEM_FLAG)!=MODEL){
+ 309   1              printf("\aSETUP ERROR!\nLoad Default.");
+ 310   1              wait_key();
+ 311   1              set_eprom(EWEN);
+ 312   1              write_eprom(BT_MIN,BT_MIN_DEFAULT_VALUE);
+ 313   1              write_eprom(BT_MAX,BT_MAX_DEFAULT_VALUE);
+ 314   1              for(i=DATA_INDEX;i<DATA+4*32;i++)write_eprom(i,0);
+ 315   1              for(i=PHONE;i<PHONE+12;i++)write_eprom(i,'*');
+ 316   1              write_eprom(SYSTEM_FLAG,MODEL);
+ 317   1              set_eprom(EWDS);
+ 318   1         }*/
+ 319   1          bt_max=eprom(BT_MAX);
+ 320   1          bt_min=eprom(BT_MIN);
+ 321   1          grid_max=eprom(GRID_MAX);
+ 322   1          grid_min=eprom(GRID_MIN);
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 6   
+
+ 323   1          mode=eprom(MODE)?1:0;
+ 324   1      }
+ 325          
+ 326          
+ 327          
+ 328          /*AD×ª»»×Ó³ÌÐò*/
+ 329          int ad(unsigned char ch)
+ 330          {
+ 331   1          idata union{
+ 332   1              unsigned char i;
+ 333   1              unsigned long l;
+ 334   1          }a;
+ 335   1          idata unsigned int result;
+ 336   1          paa.pa.adport=ch;
+ 337   1          P0=paa.pao;
+ 338   1          paen=1;
+ 339   1          paen=0;
+ 340   1          for(a.i=0;a.i<255;a.i++);
+ 341   1          sk=0;
+ 342   1          dout=1;
+ 343   1          result=0;
+ 344   1          cs0=0;
+ 345   1          while(!dout);
+ 346   1          sk=1;
+ 347   1          sk=0;
+ 348   1          sk=1;
+ 349   1          result|=dout;
+ 350   1          sk=0;
+ 351   1          for(a.i=0;a.i<11;a.i++){
+ 352   2              sk=1;
+ 353   2              result=(result<<1)|dout;
+ 354   2              sk=0;
+ 355   2          }
+ 356   1      /*    a.l=128+clip[ch];
+ 357   1          a.l=result*a.l;
+ 358   1          result=a.l/512;*/
+ 359   1          sk=dout=cs0=1;
+ 360   1          return result;
+ 361   1      }
+ 362                          
+ 363                          
+ 364          /*AD×ª»»×Ó³ÌÐò*/                
+ 365          ad_get(unsigned char ch)
+ 366          {
+ 367   1          switch(ch){
+ 368   2              case TEMP_BT:return (ad(ch)-2732-COMP_ZERO)/10;
+ 369   2              case BT_V:return (ad(ch)/2-(comp_temp*48*ad_get(TEMP_BT))/100);
+ 370   2              case LOAD_I:return ad(ch)/4;
+ 371   2              case SR_I0:pbb.pb.solorsw=1;ch=BT_C;break;
+ 372   2              case SR_I1:pbb.pb.solorsw=2;ch=BT_C;break;
+ 373   2              case SR_I2:pbb.pb.solorsw=4;ch=BT_C;break;
+ 374   2              case SR_I3:pbb.pb.solorsw=8;ch=BT_C;break;
+ 375   2              case SR_I4:pbb.pb.solorsw=0x10;ch=BT_C;break;
+ 376   2              case SR_I5:pbb.pb.solorsw=0x20;ch=BT_C;break;
+ 377   2              case INV_V:
+ 378   2              case GRID_V:return ad(ch);
+ 379   2          }
+ 380   1          P0=pbb.pbo;
+ 381   1          pben=1;
+ 382   1          pben=0;
+ 383   1          return ad(ch)/2;
+ 384   1      }
+ 385          
+ 386          int1() interrupt 2
+ 387          {
+ 388   1          dsr(0xc);
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 7   
+
+ 389   1          intflag=1;
+ 390   1      }
+ 391          
+ 392          timer0() interrupt 1
+ 393          {
+ 394   1          code char control[]={0,1,3,7,0xf,0x1f,0x3f};
+ 395   1          idata unsigned char tmp;
+ 396   1          static idata unsigned char ms,delay_c,delay_dis,next_state;
+ 397   1          idata unsigned int bt_v,grid_v;
+ 398   1          /*¶¨Ê±Æ÷³õÖµÉèÖÃ*/
+ 399   1          TH0=T0_INIT/256;
+ 400   1          TL0=T0_INIT%256;
+ 401   1          wdg=~wdg;
+ 402   1          tmp=P0;
+ 403   1          P0=0xff;
+ 404   1          /*A/DÑ­»·²ÉÑù*/
+ 405   1      /*    adres[ad_ch]=ad_get(ad_ch>10?ad_ch+3:ad_ch);
+ 406   1      
+ 407   1          ad_ch>=13?ad_ch=0:ad_ch++;*/
+ 408   1      
+ 409   1          if(please!=0xff){
+ 410   2              ad_result=ad_get(please);
+ 411   2              please=0xff;
+ 412   2          }
+ 413   1          /*50mS¼ÓÒ»*/
+ 414   1          if((ms++)==(1000/TIMEBASE-1)){
+ 415   2              /*¿´ÃÅ¹·¸´Î»*/
+ 416   2              /*1Ãë*/
+ 417   2              ms=0;
+ 418   2              time++;
+ 419   2              grid_v=ad_get(GRID_V);
+ 420   2              if(pcc.pc.work){
+ 421   3                  if(!now.load&&ad_get(INV_V)>=grid_v&&grid_v>grid_min&&grid_v<grid_max)pcc.pc.loadsw=1;
+ 422   3                  else{
+ 423   4                      pcc.pc.loadsw=0;
+ 424   4                      if(now.load)pcc.pc.work=0;
+ 425   4                  }
+ 426   3                  if(ad_get(HOT)>=110)pcc.pc.work=pcc.pc.loadsw=0;
+ 427   3              }
+ 428   2              bt_v=ad_get(BT_V);
+ 429   2              if(bt_v<(FLOAT_MIN_VALUE)){
+ 430   3                  if(next_state==now.solar_state+1){
+ 431   4                      if(delay_c==0)now.solar_state=now.solar_state==6?6:now.solar_state+1;
+ 432   4                  }
+ 433   3                  else{
+ 434   4                      next_state=now.solar_state+1;
+ 435   4                      delay_c=DELAY_CHANGE_VALUE;
+ 436   4                  }
+ 437   3              }
+ 438   2              else {
+ 439   3                  if(bt_v>FLOAT_MAX_VALUE){
+ 440   4                      if(next_state==now.solar_state-1){
+ 441   5                          if(delay_c==0)now.solar_state=now.solar_state==0?0:now.solar_state-1;
+ 442   5                      }
+ 443   4                      else{
+ 444   5                          next_state=now.solar_state-1;
+ 445   5                          delay_c=DELAY_CHANGE_VALUE;
+ 446   5                      }
+ 447   4                  }
+ 448   3                  else next_state=0;
+ 449   3              }
+ 450   2      
+ 451   2              /*×î¸ß,×îµÍµçÑ¹,³äµç,·Åµç°²Ê±¼ÇÂ¼*/
+ 452   2              if(bt_v>now.bt_v_max)now.bt_v_max=bt_v;
+ 453   2              if(bt_v<now.bt_v_min)now.bt_v_min=bt_v;
+ 454   2              now.charge_ah+=ad_get(BT_C);
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 8   
+
+ 455   2              now.discharge_ah+=ad_get(INV_C)*grid_v;
+ 456   2      
+ 457   2              /*¸ºÔØ¿ØÖÆ,load=0,¸ºÔØÕý³£¹©µç*/
+ 458   2              if(!now.load){
+ 459   3                  if(bt_v>bt_max){
+ 460   4                      /*¹ýÑ¹¸æ¾¯*/
+ 461   4                      if(delay_dis==0){
+ 462   5                          pcc.pc.high=1;
+ 463   5                          now.load=1;
+ 464   5                      }
+ 465   4                  }
+ 466   3                  else{
+ 467   4                      if(bt_v<bt_min){
+ 468   5                          /*Ç·Ñ¹¸æ¾¯*/
+ 469   5                          if(delay_dis==0){
+ 470   6                              pcc.pc.low=1;
+ 471   6                              now.load=2;
+ 472   6                          }
+ 473   5                      }
+ 474   4                      else{
+ 475   5                          delay_dis=DELAY_DISCONNECT_VALUE;
+ 476   5                      }
+ 477   4                  }
+ 478   3              }
+ 479   2              else{
+ 480   3                  if(now.load==1){
+ 481   4                      /*¹ýÑ¹¸æ¾¯»Ö¸´*/
+ 482   4                      if(bt_v<bt_max-40){
+ 483   5                          pcc.pc.high=0;
+ 484   5                          now.load=0;
+ 485   5                      }
+ 486   4                  }
+ 487   3                  else{
+ 488   4                      /*Ç·Ñ¹¸æ¾¯»Ö¸´*/
+ 489   4                      if(bt_v>BT_RELOAD_VALUE){
+ 490   5                          pcc.pc.low=0;
+ 491   5                          now.load=0;
+ 492   5                      }
+ 493   4                  }
+ 494   3              }
+ 495   2              delay_c--;
+ 496   2              delay_dis--;
+ 497   2          }
+ 498   1          pbb.pb.solorsw=control[now.solar_state];
+ 499   1          P0=paa.pao;
+ 500   1          paen=1;
+ 501   1          paen=0;
+ 502   1          P0=pbb.pbo;
+ 503   1          pben=1;
+ 504   1          pben=0;
+ 505   1          P0=pcc.pco;
+ 506   1          pcen=1;
+ 507   1          pcen=0;
+ 508   1          P0=tmp;
+ 509   1      }
+ 510          
+ 511          unsigned int get_result(unsigned char a)
+ 512          {
+ 513   1          please=a;
+ 514   1          while(please!=0xff);
+ 515   1          return ad_result;
+ 516   1      }
+ 517          
+ 518          DELAY()
+ 519          {
+ 520   1          clk=1;
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 9   
+
+ 521   1          clk=0;
+ 522   1      }
+ 523            
+ 524          /*----------------------*/
+ 525          /*  EPROMÉèÖÃ¼°²Á³ý³ÌÐò */
+ 526          /*  command=00H,EWDS  */
+ 527          /*  command=01H,EWEN  */
+ 528          /*----------------------*/
+ 529          set_eprom(unsigned char command)
+ 530          {
+ 531   1          unsigned char k;
+ 532   1          cs=clk=di=0;
+ 533   1          Do=1;
+ 534   1          cs=1;
+ 535   1          while(!Do);
+ 536   1          di=1;
+ 537   1          DELAY();
+ 538   1          if(command==0){
+ 539   2                  di=0;
+ 540   2                  DELAY();
+ 541   2                  DELAY();
+ 542   2              }
+ 543   1              else{
+ 544   2                  di=0;
+ 545   2                  DELAY();
+ 546   2                  DELAY();
+ 547   2                  command=0xc0;
+ 548   2              }
+ 549   1          for(k=0;k<8;k++){
+ 550   2              di=command>>7;
+ 551   2              DELAY();
+ 552   2              command<<=1;
+ 553   2          }
+ 554   1          cs=0;
+ 555   1      }
+ 556          
+ 557          /*--------------------------*/
+ 558          /*  EPROMÐ´Èë³ÌÐò           */
+ 559          /*  address<256,Ð´µ¥¸öÊý¾Ý  */
+ 560          /*--------------------------*/
+ 561          write_eprom(unsigned char address,unsigned int Data)
+ 562          {
+ 563   1          unsigned char k;
+ 564   1          cs=clk=di=0;
+ 565   1          Do=1;
+ 566   1          cs=1;
+ 567   1          while(!Do);
+ 568   1          di=1;
+ 569   1          DELAY();
+ 570   1          di=0;
+ 571   1          DELAY();
+ 572   1                  di=1;
+ 573   1          DELAY();
+ 574   1          for(k=0;k<8;k++){
+ 575   2              di=address>>7;
+ 576   2              DELAY();
+ 577   2              address<<=1;
+ 578   2          }
+ 579   1          for(k=0;k<16;k++){
+ 580   2              di=Data>>15;
+ 581   2              DELAY();
+ 582   2              Data<<=1;
+ 583   2          }
+ 584   1          cs=0;
+ 585   1      }
+ 586          
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 10  
+
+ 587          /*------------------*/
+ 588          /*  EPROM¶Á³ö³ÌÐò   */
+ 589          /*------------------*/
+ 590          unsigned int eprom(unsigned char address)
+ 591          {
+ 592   1          unsigned char k,i;
+ 593   1          unsigned int result;
+ 594   1          for(i=0;i<10;i++){
+ 595   2              cs=clk=di=0;
+ 596   2              Do=1;
+ 597   2              cs=1;
+ 598   2              while(!Do);
+ 599   2              cs=0;
+ 600   2              cs=1;
+ 601   2              di=1;
+ 602   2              DELAY();
+ 603   2              DELAY();
+ 604   2              di=0;
+ 605   2              DELAY();
+ 606   2              for(k=0;k<8;k++){
+ 607   3                  di=address>>7;
+ 608   3                  DELAY();
+ 609   3                  address<<=1;
+ 610   3              }
+ 611   2              if(Do==0)goto GOOD;
+ 612   2          }
+ 613   1          return 0;
+ 614   1      GOOD:
+ 615   1          for(k=0;k<16;k++){
+ 616   2              result<<=1;
+ 617   2              DELAY();
+ 618   2              result=result|Do;
+ 619   2          }
+ 620   1          cs=0;
+ 621   1          return result;
+ 622   1      }
+ 623          
+ 624          /*----------------------*/
+ 625          /*  Òº¾§ÏÔÊ¾Çý¶¯³ÌÐò    */
+ 626          /*  ÐÍºÅ:   MDLS-16265B */
+ 627          /*----------------------*/
+ 628          /*----------------------*/
+ 629          /*  Òº¾§ÏÔÊ¾Æ÷ÅÐÃ¦³ÌÐò  */
+ 630          /*----------------------*/
+ 631          
+ 632          unsigned char busy()
+ 633          {
+ 634   1          unsigned char ac;
+ 635   1          P0=0xff;
+ 636   1          RS=0;
+ 637   1          rw=1;
+ 638   1          EA=0;
+ 639   1          e=1;
+ 640   1          ac=P0;
+ 641   1          e=0;
+ 642   1          EA=1;
+ 643   1          return ac>>7;
+ 644   1      }
+ 645          
+ 646          lcd_opr(unsigned char ch)
+ 647          {
+ 648   1          while(busy());
+ 649   1          RS=rw=0;
+ 650   1          P0=ch;
+ 651   1          e=1;
+ 652   1          e=0;
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 11  
+
+ 653   1      }
+ 654          
+ 655          /*--------------------------*/
+ 656          /*  Òº¾§ÏÔÊ¾Æ÷³õÊ¼»¯³ÌÐò    */
+ 657          /*--------------------------*/
+ 658          lcd_init(void)
+ 659          {
+ 660   1          /*  ¹¤×÷·½Ê½ÉèÖÃ,8Î»Êý¾Ý½Ó¿Ú,Á½ÐÐÏÔÊ¾,5X7µãÕó   */
+ 661   1          lcd_opr(0x38);
+ 662   1          /*  ÊäÈë·½Ê½Ñ¡Ôñ,AC×Ô¶¯¼Ó1,»­Ãæ²»¶¯ */
+ 663   1          lcd_opr(6);
+ 664   1          /*  ÏÔÊ¾¿ª¹Ø¿ØÖÆ,¿ªÏÔÊ¾,¹Ø¹â±ê,½ûÖ¹ÉÁË¸ */
+ 665   1          lcd_opr(12);
+ 666   1          lcd_opr(1);
+ 667   1      }
+ 668          
+ 669          
+ 670          /*------------------------------*/
+ 671          /*  µ¥×Ö·ûÏÔÊ¾,¹©printf()µ÷ÓÃ   */
+ 672          /*------------------------------*/
+ 673          unsigned int aputchar(unsigned char c)
+ 674          {
+ 675   1          while(busy());
+ 676   1          RS=rw=0;
+ 677   1          switch(c){
+ 678   2              case '\n':P0=0xc0;break;
+ 679   2              case '\b':P0=2;break;
+ 680   2              case '\a':P0=1;break;
+ 681   2              default:RS=1;P0=c;
+ 682   2          }
+ 683   1          e=1;
+ 684   1          e=0;
+ 685   1      	return 1;
+ 686   1      }
+ 687          
+ 688          /*------------------*/
+ 689          /*  ¸ñÊ½»¯Êä³öÃüÁî  */
+ 690          /*------------------*/
+ 691          printf (char *format,...)
+ 692          {
+ 693   1          idata unsigned char format_flag,*ptr,cc=0;                               /*¸ñÊ½±êÖ¾*/
+ 694   1          idata unsigned int div_val, u_val, base;
+ 695   1          va_list ap;
+ 696   1          va_start(ap,format);
+ 697   1          for (;;){
+ 698   2              while ((format_flag = *format++) != '%'){      /* Until '%' or '\0' */
+ 699   3                  if (!format_flag){
+ 700   4                      return (1);
+ 701   4                  }
+ 702   3                  aputchar (format_flag);
+ 703   3              }
+ 704   2              switch (format_flag = *format++){
+ 705   3                  case 'c':
+ 706   3                      format_flag = va_arg(ap,int);
+ 707   3                  default:
+ 708   3                      aputchar (format_flag);
+ 709   3                  continue;
+ 710   3                  case 's':
+ 711   3                      ptr = va_arg(ap,char *);
+ 712   3                  while (format_flag = *ptr++){
+ 713   4                      if(cc==char_point)aputchar(' ');
+ 714   4                      else aputchar (format_flag);
+ 715   4                  }
+ 716   3                  continue;
+ 717   3                  case 'o':
+ 718   3                  case 'd':
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 12  
+
+ 719   3                      base = 10;
+ 720   3                      div_val = 10000;
+ 721   3                  u_val = va_arg(ap,int);
+ 722   3                      while (div_val > 1 && div_val > u_val){
+ 723   4                          div_val /= 10;
+ 724   4                      }
+ 725   3                      if(format_flag=='o' && div_val==1){
+ 726   4                          if(cc==char_point)aputchar(' ');
+ 727   4                          else aputchar('0');
+ 728   4                      }
+ 729   3                  do{
+ 730   4                      if(format_flag=='o' && div_val==1){
+ 731   5                          if(cc==char_point)aputchar(' ');
+ 732   5                          else aputchar('.');
+ 733   5                      }
+ 734   4                      if(cc==char_point)aputchar(' ');
+ 735   4                      else aputchar (u_val / div_val+48);
+ 736   4                      u_val %= div_val;
+ 737   4                      div_val /= base;
+ 738   4                  }
+ 739   3                  while (div_val);
+ 740   3              }
+ 741   2              cc++;
+ 742   2          }
+ 743   1      }
+ 744          
+ 745          delay(unsigned int time)
+ 746          {
+ 747   1          unsigned char j;
+ 748   1          for(;time>0;time--)for(j=0;j<DELAY_SCALE;j++);
+ 749   1      }
+ 750          
+ 751          unsigned char kbhit()
+ 752          {
+ 753   1          if((P1&0x0f)==0xf)return 0;else return 1;
+ 754   1      }
+ 755          
+ 756          unsigned char getch()
+ 757          {
+ 758   1          unsigned char j;
+ 759   1          j=P1&0x0f;
+ 760   1          if(j==0xf)return 0;
+ 761   1          delay(20);
+ 762   1          if(j==(P1&0xf)){
+ 763   2              time=0;
+ 764   2              return j;
+ 765   2          }
+ 766   1          return 0;
+ 767   1      }
+ 768          
+ 769          unsigned char wait_key()
+ 770          {
+ 771   1          unsigned char k;
+ 772   1          while(getch()!=NO&&time<WAITTIME);
+ 773   1          while((k=getch())==NO && time<WAITTIME);
+ 774   1      	return k;
+ 775   1      }	
+ 776          	
+ 777          char dsr(char ads)
+ 778          {
+ 779   1          EA=0;
+ 780   1          das=1;
+ 781   1          dds=1;
+ 782   1          drw=1;
+ 783   1          dcs=0;
+ 784   1          P0=ads;
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 13  
+
+ 785   1          das=0;
+ 786   1          P0=0xff;
+ 787   1          dds=0;
+ 788   1          ads=P0;
+ 789   1          dds=1;
+ 790   1          dcs=1;
+ 791   1          das=1;
+ 792   1          EA=1;
+ 793   1          return ads;
+ 794   1      }
+ 795          
+ 796          dsw(char ads,char db)
+ 797          {
+ 798   1          das=1;
+ 799   1          dds=1;
+ 800   1          drw=1;
+ 801   1          dcs=1;
+ 802   1          P0=ads;
+ 803   1          dcs=0;
+ 804   1          das=0;
+ 805   1          P0=db;
+ 806   1          drw=0;
+ 807   1          drw=1;
+ 808   1          dcs=1;
+ 809   1          das=1;
+ 810   1          P0=0xff;
+ 811   1      }
+ 812          
+ 813          setup(setup_index x)
+ 814          {
+ 815   1          unsigned char flash=0,key_time;     /*flash:ÉÁË¸Ê±¼ä¼ÆÊ±,key_time:°´¼üÊ±¼ä¼ÆÊ±*/
+ 816   1          char last_key;       /*last_key:¼ÇÒäÉÏ´Î¼üÖµ,char_point:Ê±ÖÓÈÕÆÚÉèÖÃÖ¸Õë*/
+ 817   1          int p[3],max,min,i;
+ 818   1          bit flag,ff;
+ 819   1          flag=1;
+ 820   1          p[0]=*x.value;
+ 821   1          p[1]=*x.value1;
+ 822   1          p[2]=*x.value2;
+ 823   1          if(x.type<2){
+ 824   2              max=x.max;
+ 825   2              min=x.min;
+ 826   2          }
+ 827   1          else{
+ 828   2              if(x.type==CLOCK){
+ 829   3                  max=23;
+ 830   3                  min=0;
+ 831   3              }
+ 832   2              else{
+ 833   3                  max=12;
+ 834   3                  min=1;
+ 835   3              }
+ 836   2          }
+ 837   1      /*    printf(x.title,p[0],p[1],p[2]);*/
+ 838   1          while(kbhit());
+ 839   1          char_point=0;
+ 840   1          while(1){
+ 841   2              if(flag){
+ 842   3                  if(ff){
+ 843   4                      i=char_point;
+ 844   4                      char_point=3;
+ 845   4                      switch(x.type){
+ 846   5                          case 0:printf(x.title,p[0]);break;
+ 847   5                          case 1:printf(x.title,x.option[p[0]]);break;
+ 848   5                          case 2:printf(x.title,p[0],p[1]);break;
+ 849   5                          case 3:printf(x.title,p[0],p[1],p[2]);break;
+ 850   5                      }
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 14  
+
+ 851   4                      flag=0;
+ 852   4                      ff=0;
+ 853   4                      char_point=i;
+ 854   4                  }
+ 855   3                  else{
+ 856   4                      switch(x.type){
+ 857   5                          case 0:printf(x.title,p[0]);break;
+ 858   5                          case 1:printf(x.title,x.option[0]);break;
+ 859   5                          case 2:printf(x.title,p[0],p[1]);break;
+ 860   5                          case 3:printf(x.title,p[0],p[1],p[2]);break;
+ 861   5                      }
+ 862   4                      flag=0;
+ 863   4                      ff=1;
+ 864   4                  }
+ 865   3              }
+ 866   2              delay(50);
+ 867   2              if(time>WAITTIME)return;
+ 868   2              if(kbhit()){
+ 869   3                  switch(getch()){
+ 870   4                      case ESC:char_point=10;return 0;
+ 871   4                      case OK:{
+ 872   5                          char_point=10;
+ 873   5                          *x.value=p[0];
+ 874   5                          *x.value1=p[1];
+ 875   5                          *x.value2=p[2];
+ 876   5                          return 1;
+ 877   5                      }
+ 878   4                      case INC:{
+ 879   5                          flag=ff=1;
+ 880   5                          if(last_key!=INC){
+ 881   6                              p[char_point]>=max?p[char_point]=min:p[char_point]++;
+ 882   6                              last_key=INC;
+ 883   6                              key_time=0;
+ 884   6                          }
+ 885   5                          else{
+ 886   6                              if(key_time>INPUT_DELAY){
+ 887   7                                  p[char_point]>=max?p[char_point]=min:p[char_point]++;
+ 888   7                              }
+ 889   6                              else key_time++;
+ 890   6                          }
+ 891   5                          flash=0;
+ 892   5                          break;
+ 893   5                      }
+ 894   4                      case DEC:{
+ 895   5                          flag=ff=1;
+ 896   5                          if(x.type==CLOCK){
+ 897   6                              if(char_point==1){
+ 898   7                                  char_point=0;
+ 899   7                                  max=23;
+ 900   7                              }
+ 901   6                              else{
+ 902   7                                  char_point=1;
+ 903   7                                  max=59;
+ 904   7                              }
+ 905   6                              while(kbhit());
+ 906   6                              break;
+ 907   6                          }
+ 908   5                          if(x.type==DATE){
+ 909   6                              if(char_point>=2)char_point=0;else char_point++;
+ 910   6                              if(char_point==0){max=12;min=1;}
+ 911   6                              else{
+ 912   7                                  if(char_point==1)max=31;
+ 913   7                                  else {max=99;min=0;}
+ 914   7                              }
+ 915   6                              while(kbhit());
+ 916   6                              break;
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 15  
+
+ 917   6                          }
+ 918   5                          if(last_key!=DEC){
+ 919   6                              p[char_point]<=min?p[char_point]=max:p[char_point]--;
+ 920   6                              last_key=DEC;
+ 921   6                              key_time=0;
+ 922   6                          }
+ 923   5                          else{
+ 924   6                              if(key_time>INPUT_DELAY){
+ 925   7                                  p[char_point]<=min?p[char_point]=max:p[char_point]--;
+ 926   7                              }
+ 927   6                              else key_time++;
+ 928   6                          }
+ 929   5                          flash=0;
+ 930   5                          break;
+ 931   5                      }
+ 932   4                      default:last_key=ESC;key_time=0;
+ 933   4                  }
+ 934   3              }
+ 935   2              else{
+ 936   3                  last_key=ESC;key_time=0;
+ 937   3              }
+ 938   2              if(flash>FLASH_TIME){flash=0;flag=1;}
+ 939   2              else flash++;
+ 940   2          }
+ 941   1      }
+ 942          
+ 943          view()
+ 944          {
+ 945   1          unsigned char k,address;
+ 946   1          unsigned int i;
+ 947   1          i=k=0;
+ 948   1          for(;;){
+ 949   2              if(time>WAITTIME)return;
+ 950   2              address=((i+eprom(DATA_INDEX))%32)*4+DATA;
+ 951   2              printf("\aD%d %o %oV\nCHR %d  DIS %d",i,eprom(address),eprom(address+1),eprom(address+2),eprom(add
+             -ress+3));
+ 952   2              switch(wait_key()){
+ 953   3                  case INC:i=(i+1)%32;break;
+ 954   3                  case DEC:if(i==0)i=31;else i--;break;
+ 955   3                  default:lcd_opr(1);return 0;
+ 956   3              }
+ 957   2           }
+ 958   1      }
+ 959          
+ 960          setuploop()
+ 961          {
+ 962   1          unsigned char k,i;
+ 963   1          i=0;
+ 964   1          while(1){
+ 965   2              switch (i){
+ 966   3                  case 4:v1=dsr(8);v2=dsr(7);v3=dsr(9);break;
+ 967   3                  case 5:v1=dsr(4);v2=dsr(2);v3=dsr(0);break;
+ 968   3                  case 6:v1=mode;break;
+ 969   3                  case 7:v1=eprom(SHOUR);v2=eprom(SMIN);break;
+ 970   3                  case 8:v1=eprom(EHOUR);v2=eprom(EMIN);break;
+ 971   3              }
+ 972   2              if(prompt[i].type==1)printf(prompt[i].title,prompt[i].option[*prompt[i].value]);else
+ 973   2              printf(prompt[i].title,*prompt[i].value,*prompt[i].value1,*prompt[i].value2);
+ 974   2              k=wait_key();
+ 975   2              if(time>WAITTIME)return;
+ 976   2              switch (k){
+ 977   3                  case ESC:return;
+ 978   3                  case OK:{
+ 979   4                      if(i==9){view();break;};
+ 980   4                      if(setup(prompt[i])){
+ 981   5                          set_eprom(EWEN);
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 16  
+
+ 982   5                          switch(i){
+ 983   6                              case 0:write_eprom(BT_MAX,*prompt[i].value);break;
+ 984   6                              case 1:write_eprom(BT_MIN,*prompt[i].value);break;
+ 985   6                              case 2:write_eprom(GRID_MAX,*prompt[i].value);break;
+ 986   6                              case 3:write_eprom(GRID_MIN,*prompt[i].value);break;
+ 987   6                              case 4:dsw(8,*prompt[i].value);dsw(7,*prompt[i].value1);dsw(9,*prompt[i].value2);b
+             -reak;
+ 988   6                              case 5:dsw(4,*prompt[i].value);dsw(2,*prompt[i].value1);dsw(0,*prompt[i].value2);b
+             -reak;
+ 989   6                              case 6:mode=v1;write_eprom(MODE,*prompt[i].value);break;
+ 990   6                              case 7:write_eprom(SHOUR,*prompt[i].value);write_eprom(SMIN,*prompt[i].value1);bre
+             -ak;
+ 991   6                              case 8:write_eprom(EHOUR,*prompt[i].value);write_eprom(EMIN,*prompt[i].value1);bre
+             -ak;
+ 992   6                          }
+ 993   5                          set_eprom(EWDS);
+ 994   5                      }
+ 995   4                      break;
+ 996   4                  }
+ 997   3                  case INC:i++;if(i>9)i=0;break;
+ 998   3                  case DEC:if(i>0)i--;else i=9;break;
+ 999   3              }
+1000   2          }
+1001   1      }
+1002          
+1003          /****************************/
+1004          /*  µ¥Æ¬»ú´®¿ÚÍ¨Ñ¶»ù±¾³ÌÐò  */
+1005          /*  ÎÞÓ²¼þÎÕÊÖÐÅºÅ          */
+1006          /*  ÖÐ¶Ï½ÓÊÕ¡¢²éÑ¯·¢ËÍ      */
+1007          /****************************/
+1008          
+1009          
+1010          /*------------------*/
+1011          /*  µ¥×Ö·û·¢ËÍ      */
+1012          /*------------------*/
+1013          send(unsigned char Data)
+1014          {
+1015   1      	while(TI);
+1016   1          SBUF=Data;
+1017   1          delay(10);
+1018   1      }
+1019          
+1020          /*------------------------------*/
+1021          /*  ·¢ËÍÒ»¸ö×Ö·û´®£¬Ö±µ½×Ö·ûÎª0 */
+1022          /*------------------------------*/
+1023          sendstr(unsigned char *Data)
+1024          {
+1025   1          while(*Data!=0){
+1026   2          	send(*Data);
+1027   2              Data++;
+1028   2          }
+1029   1      }
+1030          
+1031          /*--------------------------*/
+1032          /*  µ÷ÖÆ½âµ÷Æ÷³õÊ¼»¯        */
+1033          /*  ÉèÖÃÎªÎÞ»ØÏÔ¡¢Êý×Ö»ØÓ¦  */
+1034          /*--------------------------*/
+1035          
+1036          /*--------------------------*/
+1037          /*  ´®ÐÐÍ¨Ñ¶ÖÐ¶Ï³ÌÐò        */
+1038          /*  ½ÓÊÕÖÐ¶Ï½«×Ö·û          */
+1039          /*  ·¢ËÍÖÐ¶ÏÇå³ý·¢ËÍ±êÖ¾    */
+1040          /*--------------------------*/
+1041          serial() interrupt 4 using 2
+1042          {
+1043   1          if(RI){
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 17  
+
+1044   2              buf[bufin]=SBUF;
+1045   2              bufin>=(sizeof(buf)-1)?bufin=0:bufin++;
+1046   2              RI=0;
+1047   2          }
+1048   1          TI=0;
+1049   1      }
+1050          
+1051          unsigned char recviced()
+1052          {
+1053   1          unsigned char i;
+1054   1          if(bufin!=bufout){
+1055   2              for(i=bufout;i!=bufin;){
+1056   3                  if(buf[i]==13)return 1;
+1057   3                  i>=(sizeof(buf)-1)?i=0:i++;
+1058   3              }
+1059   2          }
+1060   1          return 0;
+1061   1      }
+1062          
+1063          unsigned int getb()
+1064          {
+1065   1          unsigned char i;
+1066   1          if(bufout!=bufin){
+1067   2              i=buf[bufout];
+1068   2              bufout>=(sizeof(buf)-1)?bufout=0:bufout++;
+1069   2              return i;
+1070   2          }
+1071   1          else return 0xffff;
+1072   1      }
+1073          
+1074          unsigned char getcode()
+1075          {
+1076   1          unsigned int b1=0xffff,b2=0xffff;
+1077   1          while((b1=getb())!=0xffff){
+1078   2      	if(b1==13)return b2;
+1079   2      	if((b2=getb())==13)return b1;
+1080   2          }
+1081   1      }
+1082          
+1083          unsigned char dial()
+1084          {
+1085   1          unsigned char i,phone[13];
+1086   1          lcd_init();
+1087   1          printf("\bNow Dialing...");
+1088   1          mdisplay=mflag=1;
+1089   1          for(i=0;i<13;i++)phone[i]=eprom(PHONE+i);
+1090   1          bufin=bufout=0;
+1091   1          sendstr("ATDT");
+1092   1          sendstr(phone);
+1093   1          send('\r');
+1094   1          for(i=0;i<120;i++){
+1095   2      	delay(500);
+1096   2      	if(recviced())break;
+1097   2          }
+1098   1          if(getcode()==CONNECT)return 1;
+1099   1          else return 0;
+1100   1      }
+1101          
+1102          sendw(unsigned int a)
+1103          {
+1104   1          union{
+1105   1          unsigned int a;
+1106   1          unsigned char c[2];
+1107   1          }d;
+1108   1          d.a=a;
+1109   1          send(d.c[1]);
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 18  
+
+1110   1          send(d.c[0]);
+1111   1      }
+1112          
+1113          unsigned int getw(){
+1114   1          union{
+1115   1          unsigned int a;
+1116   1          unsigned char b[2];
+1117   1          }c;
+1118   1          unsigned int i;
+1119   1          while((i=getb())==0xffff);
+1120   1          c.b[0]=i;
+1121   1          while((i=getb())==0xffff);
+1122   1          c.b[1]=i;
+1123   1          return c.a;
+1124   1      }
+1125          
+1126          talk()
+1127          {
+1128   1          idata unsigned char flag=1,i;
+1129   1          idata unsigned int *p,a,b;
+1130   1          lcd_init();
+1131   1          paa.pa.led=1;
+1132   1          printf("\bREMOTE CONTROL...");
+1133   1          mflag=mdisplay=1;
+1134   1      	switch(getb()){
+1135   2      		case NowData:{
+1136   3                  p=(int *)&now;
+1137   3                  for(a=0;a<sizeof(now)/2;a++){
+1138   4      				b=p[a];
+1139   4      				sendw(b);
+1140   4                  }
+1141   3                  for(i=0;i<19;i++){
+1142   4                      b=get_result(i);
+1143   4                      sendw(b);
+1144   4                  }
+1145   3                  for(i=0;i<250;i++){
+1146   4                      b=eprom(i);
+1147   4                      sendw(b);
+1148   4                  }
+1149   3                  for(i=0;i<128;i++){
+1150   4                      send(dsr(i));
+1151   4                  }
+1152   3                  break;
+1153   3              }
+1154   2      		case SendSetData:{
+1155   3      			set_eprom(EWEN);
+1156   3                  a=getb();
+1157   3                  b=getw();
+1158   3                  write_eprom(a,b);
+1159   3      			set_eprom(EWDS);
+1160   3      			break;
+1161   3      		}
+1162   2              case sendsys:{
+1163   3                  a=getb();
+1164   3                  b=getb();
+1165   3                  dsw(a,b);
+1166   3                  break;
+1167   3              }
+1168   2              case '9':{
+1169   3                  pcc.pc.work=1;
+1170   3                  break;
+1171   3              }
+1172   2              case '0':{
+1173   3                  pcc.pc.work=pcc.pc.loadsw=0;
+1174   3                  break;
+1175   3              }
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 19  
+
+1176   2          }
+1177   1      }
+1178          
+1179          save()
+1180          {
+1181   1          idata unsigned char i;
+1182   1          i=eprom(DATA_INDEX);
+1183   1          i=i*4+DATA;
+1184   1          write_eprom(i,now.bt_v_max);
+1185   1          write_eprom(i+1,now.bt_v_min);
+1186   1          write_eprom(i+2,now.charge_ah/3600);
+1187   1          write_eprom(i+3,now.discharge_ah/3600);
+1188   1          write_eprom(DATA_INDEX,i==31?0:i++);
+1189   1          now.bt_v_max=0;
+1190   1          now.bt_v_min=1024;
+1191   1          now.charge_ah=now.discharge_ah=0;
+1192   1          dsw(100,dsr(7));
+1193   1      }
+1194          
+1195          main()
+1196          {
+1197   1          idata unsigned char farme;
+1198   1          code char *state[]={"INVERTER CLOSED.","INVERTER STARTED."};
+1199   1          init();
+1200   1          now.solar_state=1;
+1201   1          dsw(0xa,0x2f);
+1202   1          dsw(0xb,0x16);
+1203   1      
+1204   1          farme=time=0;
+1205   1          mdisplay=mflag=1;
+1206   1          while(1){
+1207   2              if(!mdisplay&&getch()!=NO){
+1208   3                  lcd_init();
+1209   3                  paa.pa.led=1;
+1210   3                  mdisplay=1;
+1211   3              }
+1212   2              if(time>WAITTIME){
+1213   3                  mdisplay=0;
+1214   3                  lcd_opr(8);
+1215   3                  paa.pa.led=0;
+1216   3              }
+1217   2              if(mdisplay){
+1218   3                  switch(getch()){
+1219   4                      case OK:{
+1220   5                          mflag=1;farme=0;
+1221   5                          while(getch()==OK);
+1222   5                          if(getch()==(OK&INC)){
+1223   6                              if(pcc.pc.work){
+1224   7                                  pcc.pc.work=pcc.pc.loadsw=0;
+1225   7                                  printf("\aINVERTER CLOSED.");
+1226   7                              }
+1227   6                              else{
+1228   7                                  pcc.pc.work=1;
+1229   7                                  printf("\aINVERTER STARTED.");
+1230   7                              }
+1231   6                              while(kbhit());
+1232   6                          }
+1233   5                          break;
+1234   5                      }
+1235   4                      case INC:mflag=1;farme++;if(farme==5)farme=0;break;
+1236   4                      case DEC:mflag=1;if(farme==0)farme=4;else farme--;break;
+1237   4                      case ESC:setuploop();mflag=1;break;
+1238   4                  }
+1239   3                  if(mflag){
+1240   4                      switch(farme){
+1241   5                          case 0:printf("\a%s\n%d:%d:%d %d-%d-%d",state[pcc.pc.work],(int)dsr(4),(int)dsr(2),(in
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 20  
+
+             -t)dsr(0),(int)dsr(8),(int)dsr(7),(int)dsr(9));break;
+1242   5                          case 1:printf("\aBATTERY:%oV\n%oA STATE:%d",get_result(BT_V),get_result(BT_C),(int)now
+             -.solar_state);break;
+1243   5                          case 2:printf("\aDISCHARGE:%oA\nLOAD STATE:%d",get_result(LOAD_I),(int)now.load);break
+             -;
+1244   5                          case 3:printf("\aGRID:%oV",get_result(GRID_V));break;
+1245   5                          case 4:printf("\aINVERTE:%oV\n%oA t:%d",get_result(INV_V),get_result(INV_C),get_result
+             -(TEMP_BT)+20);break;
+1246   5                      }
+1247   4                      mflag=0;
+1248   4                      while(kbhit());
+1249   4                  }
+1250   3                  if(intflag){
+1251   4                      intflag=0;
+1252   4                      mflag=1;
+1253   4                  }
+1254   3              }
+1255   2              if(up_load && dsr(4)==eprom(UP_HOUR) && dsr(2)>=eprom(UP_MIN)){
+1256   3                  if(dial()==1)up_load=0;
+1257   3              }
+1258   2              if(bufin!=bufout)talk();
+1259   2              if(dsr(100)!=dsr(7))save();
+1260   2          }
+1261   1      }
+1262          
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 21  
+
+NAME                                    CLASS   MSPACE  TYPE    OFFSET  SIZE
+====                                    =====   ======  ====    ======  ====
+
+
+bt_max . . . . . . . . . . . . . . . .  PUBLIC   IDATA  U_INT    0004H  2
+P0 . . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   0080H  1
+P1 . . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   0090H  1
+_sendw . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  a. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_INT    0006H  2
+  d. . . . . . . . . . . . . . . . . .  AUTO     XDATA  UNION    0000H  2
+serial . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+T0 . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B4H  1
+AC . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00D6H  1
+T1 . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B5H  1
+_eprom . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  address. . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0007H  1
+  k. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0005H  1
+  i. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0006H  1
+  result . . . . . . . . . . . . . . .  AUTO     XDATA  U_INT    0000H  2
+  GOOD . . . . . . . . . . . . . . . .  LABEL    CODE   LABEL    -----  -----
+T2 . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0090H  1
+EA . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00AFH  1
+cs0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B2H  1
+mflag. . . . . . . . . . . . . . . . .  PUBLIC   DATA   BIT      0000H  1
+_send. . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  Data . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0007H  1
+getch. . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  j. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0004H  1
+IE . . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   00A8H  1
+size_t . . . . . . . . . . . . . . . .  TYPEDEF  -----  U_INT    -----  2
+kbhit. . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+_write_eprom . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  address. . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0007H  1
+  Data . . . . . . . . . . . . . . . .  * REG *  DATA   U_INT    0002H  2
+  k. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0005H  1
+T2IE . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00CDH  1
+RD . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B7H  1
+bufin. . . . . . . . . . . . . . . . .  PUBLIC   IDATA  CHAR     0006H  1
+pmode. . . . . . . . . . . . . . . . .  PUBLIC   CODE   ARRAY    012EH  6
+ES . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00ACH  1
+bufout . . . . . . . . . . . . . . . .  PUBLIC   IDATA  CHAR     0007H  1
+RI . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0098H  1
+dial . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  i. . . . . . . . . . . . . . . . . .  AUTO     XDATA  U_CHAR   0000H  1
+  phone. . . . . . . . . . . . . . . .  AUTO     XDATA  ARRAY    0001H  13
+INT0 . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B2H  1
+CY . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00D7H  1
+BGEN . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00CBH  1
+TI . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0099H  1
+INT1 . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B3H  1
+T2IP . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00CEH  1
+PS . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00BCH  1
+getb . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  i. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0006H  1
+T2EX . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0091H  1
+_get_result. . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  a. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0007H  1
+_ad. . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  ch . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0007H  1
+  a. . . . . . . . . . . . . . . . . .  STATIC   IDATA  UNION    0000H  4
+  result . . . . . . . . . . . . . . .  STATIC   IDATA  U_INT    0004H  2
+RS . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A0H  1
+OV . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00D2H  1
+paen . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A5H  1
+prompt . . . . . . . . . . . . . . . .  PUBLIC   CODE   ARRAY    0134H  490
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 22  
+
+NAME                                    CLASS   MSPACE  TYPE    OFFSET  SIZE
+====                                    =====   ======  ====    ======  ====
+
+
+main . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  farme. . . . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0000H  1
+  state. . . . . . . . . . . . . . . .  STATIC   CODE   ARRAY    0325H  6
+pben . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A6H  1
+v1 . . . . . . . . . . . . . . . . . .  PUBLIC   IDATA  U_INT    0008H  2
+mode . . . . . . . . . . . . . . . . .  PUBLIC   DATA   BIT      0001H  1
+pcen . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A7H  1
+v2 . . . . . . . . . . . . . . . . . .  PUBLIC   IDATA  U_INT    000AH  2
+v3 . . . . . . . . . . . . . . . . . .  PUBLIC   IDATA  U_INT    000CH  2
+C_T2 . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00C9H  1
+WR . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B6H  1
+_dsr . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  ads. . . . . . . . . . . . . . . . .  * REG *  DATA   CHAR     0007H  1
+clip . . . . . . . . . . . . . . . . .  PUBLIC   CODE   ARRAY    011EH  16
+talk . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  flag . . . . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0000H  1
+  i. . . . . . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0001H  1
+  p. . . . . . . . . . . . . . . . . .  STATIC   IDATA  PTR      0002H  3
+  a. . . . . . . . . . . . . . . . . .  STATIC   IDATA  U_INT    0005H  2
+  b. . . . . . . . . . . . . . . . . .  STATIC   IDATA  U_INT    0007H  2
+outen. . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B6H  1
+char_point . . . . . . . . . . . . . .  PUBLIC   IDATA  U_CHAR   000EH  1
+_dsw . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  ads. . . . . . . . . . . . . . . . .  * REG *  DATA   CHAR     0007H  1
+  db . . . . . . . . . . . . . . . . .  * REG *  DATA   CHAR     0005H  1
+setup_index. . . . . . . . . . . . . .  TYPEDEF  -----  STRUCT   -----  49
+  type . . . . . . . . . . . . . . . .  MEMBER   -----  CHAR     0000H  1
+  title. . . . . . . . . . . . . . . .  MEMBER   -----  ARRAY    0001H  32
+  max. . . . . . . . . . . . . . . . .  MEMBER   -----  INT      0021H  2
+  min. . . . . . . . . . . . . . . . .  MEMBER   -----  INT      0023H  2
+  option . . . . . . . . . . . . . . .  MEMBER   -----  PTR      0025H  3
+  value. . . . . . . . . . . . . . . .  MEMBER   -----  PTR      0028H  3
+  value1 . . . . . . . . . . . . . . .  MEMBER   -----  PTR      002BH  3
+  value2 . . . . . . . . . . . . . . .  MEMBER   -----  PTR      002EH  3
+save . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  i. . . . . . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0000H  1
+time . . . . . . . . . . . . . . . . .  PUBLIC   IDATA  U_INT    000FH  2
+SBUF . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   0099H  1
+PCON . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   0087H  1
+Do . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0094H  1
+paa. . . . . . . . . . . . . . . . . .  PUBLIC   IDATA  UNION    0011H  1
+setup. . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  x. . . . . . . . . . . . . . . . . .  AUTO     XDATA  STRUCT   0000H  49
+  flash. . . . . . . . . . . . . . . .  AUTO     XDATA  U_CHAR   0031H  1
+  key_time . . . . . . . . . . . . . .  AUTO     XDATA  U_CHAR   0032H  1
+  last_key . . . . . . . . . . . . . .  AUTO     XDATA  CHAR     0033H  1
+  p. . . . . . . . . . . . . . . . . .  AUTO     XDATA  ARRAY    0034H  6
+  max. . . . . . . . . . . . . . . . .  AUTO     XDATA  INT      003AH  2
+  min. . . . . . . . . . . . . . . . .  AUTO     XDATA  INT      003CH  2
+  i. . . . . . . . . . . . . . . . . .  AUTO     XDATA  INT      003EH  2
+  flag . . . . . . . . . . . . . . . .  AUTO     DATA   BIT      0000H  1
+  ff . . . . . . . . . . . . . . . . .  AUTO     DATA   BIT      0001H  1
+_set_eprom . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  command. . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0007H  1
+  k. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0006H  1
+SCON . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   0098H  1
+pbb. . . . . . . . . . . . . . . . . .  PUBLIC   IDATA  UNION    0012H  1
+TMOD . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   0089H  1
+init . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+pcc. . . . . . . . . . . . . . . . . .  PUBLIC   IDATA  UNION    0013H  1
+getw . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 23  
+
+NAME                                    CLASS   MSPACE  TYPE    OFFSET  SIZE
+====                                    =====   ======  ====    ======  ====
+
+
+  c. . . . . . . . . . . . . . . . . .  AUTO     XDATA  UNION    0000H  2
+  i. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_INT    0004H  2
+das. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A3H  1
+clk. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0096H  1
+dcs. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A4H  1
+dds. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A0H  1
+view . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  k. . . . . . . . . . . . . . . . . .  AUTO     XDATA  U_CHAR   0000H  1
+  address. . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0004H  1
+  i. . . . . . . . . . . . . . . . . .  AUTO     XDATA  U_INT    0001H  2
+_aputchar. . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  c. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0006H  1
+dout . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B5H  1
+buf. . . . . . . . . . . . . . . . . .  PUBLIC   IDATA  ARRAY    0014H  5
+IE0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0089H  1
+IE1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      008BH  1
+wdg. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B4H  1
+CP_RL2 . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00C8H  1
+busy . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  ac . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0007H  1
+_lcd_opr . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  ch . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0006H  1
+_ad_get. . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  ch . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0003H  1
+ad_result. . . . . . . . . . . . . . .  PUBLIC   IDATA  U_INT    0019H  2
+ET0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A9H  1
+recviced . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  i. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0006H  1
+ET1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00ABH  1
+TF0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      008DH  1
+lcd_init . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+ET2. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00ADH  1
+TF1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      008FH  1
+TF2. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00CFH  1
+RB8. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      009AH  1
+TH0. . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   008CH  1
+di . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0095H  1
+EX0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A8H  1
+IT0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0088H  1
+TH1. . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   008DH  1
+drw. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A1H  1
+grid_min . . . . . . . . . . . . . . .  PUBLIC   IDATA  U_INT    001BH  2
+TB8. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      009BH  1
+EX1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00AAH  1
+IT1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      008AH  1
+P. . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00D0H  1
+grid_max . . . . . . . . . . . . . . .  PUBLIC   IDATA  U_INT    001DH  2
+SM0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      009FH  1
+TL0. . . . . . . . . . . . . . . . . .  SFR      DATA   U_CHAR   008AH  1
+SM1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      009EH  1
+SM2. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      009DH  1
+timer0 . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  control. . . . . . . . . . . . . . .  STATIC   CODE   ARRAY    031EH  7
+  tmp. . . . . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0000H  1
+  ms . . . . . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0000H  1
+  delay_c. . . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0001H  1
+  delay_dis. . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0002H  1
+  next_state . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0003H  1
+  bt_v . . . . . . . . . . . . . . . .  STATIC   IDATA  U_INT    0001H  2
+  grid_v . . . . . . . . . . . . . . .  STATIC   IDATA  U_INT    0003H  2
+PT0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B9H  1
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 24  
+
+NAME                                    CLASS   MSPACE  TYPE    OFFSET  SIZE
+====                                    =====   ======  ====    ======  ====
+
+
+now. . . . . . . . . . . . . . . . . .  PUBLIC   IDATA  STRUCT   001FH  14
+PT1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00BBH  1
+RS0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00D3H  1
+cs . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      0097H  1
+PT2. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00BDH  1
+TR0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      008CH  1
+RS1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00D4H  1
+TR1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      008EH  1
+TR2. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00CAH  1
+PX0. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B8H  1
+PX1. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00BAH  1
+sk . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B7H  1
+getcode. . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  b1 . . . . . . . . . . . . . . . . .  * REG *  DATA   U_INT    0004H  2
+  b2 . . . . . . . . . . . . . . . . .  * REG *  DATA   U_INT    0002H  2
+wait_key . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  k. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0007H  1
+e. . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A2H  1
+REN. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      009CH  1
+_sendstr . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  Data . . . . . . . . . . . . . . . .  AUTO     XDATA  PTR      0000H  3
+mdisplay . . . . . . . . . . . . . . .  PUBLIC   DATA   BIT      0002H  1
+up_load. . . . . . . . . . . . . . . .  PUBLIC   DATA   BIT      0003H  1
+rw . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00A1H  1
+intflag. . . . . . . . . . . . . . . .  PUBLIC   DATA   BIT      0004H  1
+RXD. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B0H  1
+DELAY. . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+TXD. . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00B1H  1
+setuploop. . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  k. . . . . . . . . . . . . . . . . .  AUTO     XDATA  U_CHAR   0000H  1
+  i. . . . . . . . . . . . . . . . . .  AUTO     XDATA  U_CHAR   0001H  1
+_delay . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  time . . . . . . . . . . . . . . . .  * REG *  DATA   U_INT    0006H  2
+  j. . . . . . . . . . . . . . . . . .  * REG *  DATA   U_CHAR   0005H  1
+T2RSE. . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00CCH  1
+F0 . . . . . . . . . . . . . . . . . .  ABSBIT   -----  BIT      00D5H  1
+_printf. . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+  format . . . . . . . . . . . . . . .  AUTO     XDATA  PTR      0000H  3
+  ellipsis_40. . . . . . . . . . . . .  AUTO     XDATA  ARRAY    0003H  40
+  format_flag. . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0000H  1
+  ptr. . . . . . . . . . . . . . . . .  STATIC   IDATA  PTR      0001H  3
+  cc . . . . . . . . . . . . . . . . .  STATIC   IDATA  U_CHAR   0004H  1
+  div_val. . . . . . . . . . . . . . .  STATIC   IDATA  U_INT    0005H  2
+  u_val. . . . . . . . . . . . . . . .  STATIC   IDATA  U_INT    0007H  2
+  base . . . . . . . . . . . . . . . .  STATIC   IDATA  U_INT    0009H  2
+  ap . . . . . . . . . . . . . . . . .  AUTO     XDATA  PTR      002BH  3
+va_list. . . . . . . . . . . . . . . .  TYPEDEF  -----  PTR      -----  3
+bt_min . . . . . . . . . . . . . . . .  PUBLIC   IDATA  U_INT    002DH  2
+int1 . . . . . . . . . . . . . . . . .  PUBLIC   CODE   PROC     -----  -----
+please . . . . . . . . . . . . . . . .  PUBLIC   IDATA  U_CHAR   002FH  1
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   6881    ----
+   CONSTANT SIZE    =    811    ----
+   XDATA SIZE       =   ----     138
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =     48      33
+   BIT SIZE         =      5       2
+END OF MODULE INFORMATION.
+
+C51 COMPILER V5.20,  TBI                                                                   19/01/00  21:28:54  PAGE 25  
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

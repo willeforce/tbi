@@ -1,0 +1,19 @@
+Turbo Link  Version 6.00 Copyright (c) 1992, 1993 Borland International
+Syntax: TLINK objfiles, exefile, mapfile, libfiles, deffile, resfiles
+@xxxx indicates use response file xxxx
+/x   No map                          /c  Case sensitive symbols
+/m   Map including public names      /C  Case sensitive exports & imports
+/M   Map with mangled public names   /e  Ignore extended dictionaries
+/s   Map plus detailed segment map   /E  Process extended dictionaries
+/l   Map plus source line #s         /ye Expanded memory swapping
+/i   Initialize all segments         /yx Extended memory swapping
+/L   Specify library search paths    /d  Warn if duplicate symbols in libraries
+/n   Ignore default libraries        /f  Inhibit optimizing far calls to near
+/v   Full symbolic debug information /Gx Goodies
+/Txx Specify output file type            n=discard Nonresident name table
+     Tdx  DOS image (default)            r=transfer Resident names to
+       x can be e=EXE or c=COM             nonresident names table
+     Twx  Windows image              /P[=dd]  Pack code segments
+       x can be e=EXE or d=DLL       /A=dd  Set segment alignment
+/3  Enable 32-bit processing         /R[mpekv]  Specify option to RLINK
+/o  Overlay switch                   /t  Create COM file (same as /Tdc)
